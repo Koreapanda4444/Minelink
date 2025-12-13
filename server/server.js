@@ -33,15 +33,18 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "POST" && req.url === "/peers") {
     readBody(req, body => {
-      const peers = peerState.getPeers(body.code);
-      res.end(JSON.stringify({ peers }));
+      res.end(JSON.stringify({
+        peers: peerState.getPeers(body.code)
+      }));
     });
     return;
   }
 
   if (req.method === "POST" && req.url === "/relay/push") {
     readBody(req, body => {
-      relay.push(body.code, body.data);
+      if (relay.has(body.code)) {
+        relay.push(body.code, body.data);
+      }
       res.end(JSON.stringify({ ok: true }));
     });
     return;
@@ -49,6 +52,10 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "POST" && req.url === "/relay/pull") {
     readBody(req, body => {
+      if (!relay.has(body.code)) {
+        res.end(JSON.stringify({ data: null }));
+        return;
+      }
       const data = relay.pull(body.code);
       res.end(JSON.stringify({ data }));
     });
@@ -60,5 +67,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Oracle server running on ${PORT}`);
+  console.log("Oracle server running on", PORT);
 });

@@ -2,15 +2,15 @@ import json
 import threading
 import time
 import urllib.request
-import socket
 from state import state
 from config import config
-
-RELAY_CHUNK = 4096
 
 class NetworkManager:
     def __init__(self):
         self.running = False
+        self.poll_thread = None
+        self.peer_thread = None
+        self.on_receive = lambda data: None
 
     def _post(self, path, data):
         url = f"http://{config.oracle_host}:{config.oracle_port}{path}"
@@ -24,32 +24,61 @@ class NetworkManager:
             return json.loads(res.read().decode())
 
     def connect(self):
+        if self.running:
+            return
         self.running = True
         state.network_mode = "relay"
-        threading.Thread(target=self._poll, daemon=True).start()
+
+        self.poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self.peer_thread = threading.Thread(target=self._peer_sync_loop, daemon=True)
+
+        self.poll_thread.start()
+        self.peer_thread.start()
+
+    def disconnect(self):
+        self.running = False
+        time.sleep(0.2)
+        state.network_mode = None
 
     def send(self, data):
-        if not state.session_code:
+        if not self.running or not state.session_code:
             return
-        self._post("/relay/push", {
-            "code": state.session_code,
-            "data": data
-        })
+        try:
+            self._post("/relay/push", {
+                "code": state.session_code,
+                "data": data
+            })
+        except:
+            pass
 
-    def _poll(self):
+    def _poll_loop(self):
+        while self.running:
+            if not state.session_code:
+                time.sleep(0.5)
+                continue
+            try:
+                res = self._post("/relay/pull", {
+                    "code": state.session_code
+                })
+                data = res.get("data")
+                if data is not None:
+                    self.on_receive(data)
+            except:
+                pass
+            time.sleep(0.05)
+
+    def _peer_sync_loop(self):
         while self.running:
             if not state.session_code:
                 time.sleep(1)
                 continue
-            res = self._post("/relay/pull", {
-                "code": state.session_code
-            })
-            data = res.get("data")
-            if data:
-                self.on_receive(data)
-            time.sleep(0.01)
-
-    def on_receive(self, data):
-        pass
+            try:
+                res = self._post("/peers", {
+                    "code": state.session_code
+                })
+                state.peers = res.get("peers", [])
+            except:
+                pass
+            time.sleep(2)
 
 network = NetworkManager()

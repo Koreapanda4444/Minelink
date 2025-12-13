@@ -57,6 +57,7 @@ def handle_command(raw):
     elif cmd == "!help":
         cmd_help()
     elif cmd == "!exit":
+        network.disconnect()
         exit(0)
     else:
         print("Unknown command")
@@ -69,6 +70,7 @@ def main():
             raw = input("Minelink> ").strip()
             handle_command(raw)
         except KeyboardInterrupt:
+            network.disconnect()
             break
 
 if __name__ == "__main__":
