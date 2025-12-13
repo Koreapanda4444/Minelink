@@ -31,6 +31,7 @@ class NetworkManager:
             return
         self.running = True
         state.network_mode = "relay"
+
         threading.Thread(target=self._relay_poll, daemon=True).start()
         threading.Thread(target=self._peer_sync, daemon=True).start()
 
@@ -42,11 +43,16 @@ class NetworkManager:
     def disconnect(self):
         self.running = False
         state.network_mode = None
+        self._close_tcp()
+
+    def _close_tcp(self):
         try:
             if self.tcp_socket:
+                self.tcp_socket.shutdown(socket.SHUT_RDWR)
                 self.tcp_socket.close()
         except:
             pass
+        self.tcp_socket = None
 
     def send(self, data):
         if not self.running or not state.session_code:
@@ -65,9 +71,9 @@ class NetworkManager:
                 res = self._post("/relay/pull", {
                     "code": state.session_code
                 })
-                data = res.get("data")
-                if data:
-                    self._handle_packet(data)
+                pkt = res.get("data")
+                if pkt:
+                    self._handle_packet(pkt)
             except:
                 pass
             time.sleep(0.05)
@@ -88,58 +94,65 @@ class NetworkManager:
             self.on_receive(pkt)
             return
 
-        if pkt.get("dir") == "host_to_peer" and state.is_peer():
-            try:
-                data = bytes.fromhex(pkt["data"])
-                if self.tcp_socket:
-                    self.tcp_socket.sendall(data)
-            except:
-                pass
+        if not self.tcp_socket:
+            return
 
-        if pkt.get("dir") == "peer_to_host" and state.is_host():
-            try:
-                data = bytes.fromhex(pkt["data"])
-                if self.tcp_socket:
-                    self.tcp_socket.sendall(data)
-            except:
-                pass
+        try:
+            data = bytes.fromhex(pkt["data"])
+            self.tcp_socket.sendall(data)
+        except:
+            self._close_tcp()
 
     def _tcp_peer(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("127.0.0.1", MC_PORT))
-        s.listen(1)
-        self.tcp_socket, _ = s.accept()
-        self.tcp_socket.setblocking(False)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", MC_PORT))
+        server.listen(1)
 
         while self.running:
-            r, _, _ = select.select([self.tcp_socket], [], [], 0.05)
-            if self.tcp_socket in r:
-                data = self.tcp_socket.recv(4096)
-                if not data:
-                    break
-                self.send({
-                    "type": "tcp",
-                    "dir": "peer_to_host",
-                    "data": data.hex()
-                })
-        s.close()
+            try:
+                conn, _ = server.accept()
+                self.tcp_socket = conn
+                conn.setblocking(False)
+
+                while self.running:
+                    r, _, _ = select.select([conn], [], [], 0.1)
+                    if conn in r:
+                        data = conn.recv(4096)
+                        if not data:
+                            break
+                        self.send({
+                            "type": "tcp",
+                            "data": data.hex()
+                        })
+            except:
+                pass
+            finally:
+                self._close_tcp()
+
+        server.close()
 
     def _tcp_host(self):
-        self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcp_socket.connect(("127.0.0.1", MC_PORT))
-        self.tcp_socket.setblocking(False)
-
         while self.running:
-            r, _, _ = select.select([self.tcp_socket], [], [], 0.05)
-            if self.tcp_socket in r:
-                data = self.tcp_socket.recv(4096)
-                if not data:
-                    break
-                self.send({
-                    "type": "tcp",
-                    "dir": "host_to_peer",
-                    "data": data.hex()
-                })
-        self.tcp_socket.close()
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect(("127.0.0.1", MC_PORT))
+                s.setblocking(False)
+                self.tcp_socket = s
+
+                while self.running:
+                    r, _, _ = select.select([s], [], [], 0.1)
+                    if s in r:
+                        data = s.recv(4096)
+                        if not data:
+                            break
+                        self.send({
+                            "type": "tcp",
+                            "data": data.hex()
+                        })
+            except:
+                time.sleep(1)
+            finally:
+                self._close_tcp()
 
 network = NetworkManager()
