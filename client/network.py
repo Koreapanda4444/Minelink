@@ -2,8 +2,11 @@ import json
 import threading
 import time
 import urllib.request
+import socket
 from state import state
 from config import config
+
+RELAY_CHUNK = 4096
 
 class NetworkManager:
     def __init__(self):
@@ -24,25 +27,6 @@ class NetworkManager:
         self.running = True
         state.network_mode = "relay"
         threading.Thread(target=self._poll, daemon=True).start()
-        threading.Thread(target=self._sync_peers, daemon=True).start()
-
-    def disconnect(self):
-        self.running = False
-        if state.session_code and state.peer_id:
-            self._post("/leave", {
-                "code": state.session_code,
-                "peer": state.peer_id
-            })
-        state.reset()
-
-    def _sync_peers(self):
-        while self.running:
-            if not state.session_code:
-                time.sleep(1)
-                continue
-            res = self._post("/peers", {"code": state.session_code})
-            state.peers = res.get("peers", [])
-            time.sleep(2)
 
     def send(self, data):
         if not state.session_code:
@@ -57,13 +41,15 @@ class NetworkManager:
             if not state.session_code:
                 time.sleep(1)
                 continue
-            res = self._post("/relay/pull", {"code": state.session_code})
+            res = self._post("/relay/pull", {
+                "code": state.session_code
+            })
             data = res.get("data")
-            if data is not None:
+            if data:
                 self.on_receive(data)
-            time.sleep(0.1)
+            time.sleep(0.01)
 
     def on_receive(self, data):
-        print("Received:", data)
+        pass
 
 network = NetworkManager()
