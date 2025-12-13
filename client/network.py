@@ -6,6 +6,9 @@ from state import state
 from config import config
 
 class NetworkManager:
+    def __init__(self):
+        self.running = False
+
     def _post(self, path, data):
         url = f"http://{config.oracle_host}:{config.oracle_port}{path}"
         req = urllib.request.Request(
@@ -18,19 +21,26 @@ class NetworkManager:
             return json.loads(res.read().decode())
 
     def connect(self):
+        self.running = True
         state.network_mode = "relay"
         threading.Thread(target=self._poll, daemon=True).start()
         threading.Thread(target=self._sync_peers, daemon=True).start()
-        print("Network mode: relay")
+
+    def disconnect(self):
+        self.running = False
+        if state.session_code and state.peer_id:
+            self._post("/leave", {
+                "code": state.session_code,
+                "peer": state.peer_id
+            })
+        state.reset()
 
     def _sync_peers(self):
-        while True:
+        while self.running:
             if not state.session_code:
                 time.sleep(1)
                 continue
-            res = self._post("/peers", {
-                "code": state.session_code
-            })
+            res = self._post("/peers", {"code": state.session_code})
             state.peers = res.get("peers", [])
             time.sleep(2)
 
@@ -43,19 +53,14 @@ class NetworkManager:
         })
 
     def _poll(self):
-        while True:
+        while self.running:
             if not state.session_code:
                 time.sleep(1)
                 continue
-
-            res = self._post("/relay/pull", {
-                "code": state.session_code
-            })
-
+            res = self._post("/relay/pull", {"code": state.session_code})
             data = res.get("data")
             if data is not None:
                 self.on_receive(data)
-
             time.sleep(0.1)
 
     def on_receive(self, data):
