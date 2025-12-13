@@ -20,7 +20,19 @@ class NetworkManager:
     def connect(self):
         state.network_mode = "relay"
         threading.Thread(target=self._poll, daemon=True).start()
+        threading.Thread(target=self._sync_peers, daemon=True).start()
         print("Network mode: relay")
+
+    def _sync_peers(self):
+        while True:
+            if not state.session_code:
+                time.sleep(1)
+                continue
+            res = self._post("/peers", {
+                "code": state.session_code
+            })
+            state.peers = res.get("peers", [])
+            time.sleep(2)
 
     def send(self, data):
         if not state.session_code:

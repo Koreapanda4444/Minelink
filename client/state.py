@@ -18,11 +18,11 @@ class State:
 
     def print_status(self):
         print("====== STATUS ======")
-        print(f"Mode          : {self.mode}")
-        print(f"Session Code  : {self.session_code}")
-        print(f"Network Mode  : {self.network_mode}")
-        print(f"Oracle Conn   : {self.oracle_connected}")
-        print(f"Peers         : {len(self.peers)}")
+        print("Mode          :", self.mode)
+        print("Session Code  :", self.session_code)
+        print("Network Mode  :", self.network_mode)
+        print("Oracle Conn   :", self.oracle_connected)
+        print("Peers         :", len(self.peers))
         print("====================")
 
 state = State()

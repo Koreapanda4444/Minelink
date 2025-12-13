@@ -1,6 +1,7 @@
 const http = require("http");
 const { createSession, joinSession } = require("./sessions");
 const relay = require("./relay");
+const peerState = require("./state");
 
 const PORT = 3000;
 
@@ -14,6 +15,7 @@ const server = http.createServer((req, res) => {
   if (req.method === "POST" && req.url === "/create") {
     readBody(req, () => {
       const code = createSession("host");
+      peerState.initSession(code);
       relay.openChannel(code);
       res.end(JSON.stringify({ code }));
     });
@@ -23,7 +25,16 @@ const server = http.createServer((req, res) => {
   if (req.method === "POST" && req.url === "/join") {
     readBody(req, body => {
       const ok = joinSession(body.code, "peer");
+      if (ok) peerState.addPeer(body.code, "peer");
       res.end(JSON.stringify({ ok }));
+    });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/peers") {
+    readBody(req, body => {
+      const peers = peerState.getPeers(body.code);
+      res.end(JSON.stringify({ peers }));
     });
     return;
   }
