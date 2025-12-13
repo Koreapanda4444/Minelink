@@ -1,7 +1,12 @@
 const http = require("http");
 
-http.createServer((req, res) => {
+const PORT = 3000;
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("Minelink Oracle Server");
-}).listen(3000, () => {
-  console.log("Oracle server running on 3000");
+});
+
+server.listen(PORT, () => {
+  console.log(`Oracle server running on ${PORT}`);
 });
