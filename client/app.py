@@ -1,4 +1,9 @@
 from state import state
+from lan import lan
+from network import network
+
+network.on_receive = lan.emit
+
 
 RED = "\033[31m"
 RESET = "\033[0m"
