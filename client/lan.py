@@ -31,6 +31,20 @@ class LanEmulator:
                 continue
 
     def emit(self, payload):
-        pass
+        if not state.is_peer():
+            return
+        if not isinstance(payload, dict):
+            return
+        if payload.get("type") != "lan_packet":
+            return
+
+        try:
+            data = bytes.fromhex(payload.get("data"))
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.sendto(data, ("255.255.255.255", MC_LAN_PORT))
+            sock.close()
+        except Exception:
+            pass
 
 lan = LanEmulator()
