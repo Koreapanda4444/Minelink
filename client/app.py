@@ -1,9 +1,7 @@
 from state import state
-from lan import lan
+from oracle import oracle
 from network import network
-
-network.on_receive = lan.emit
-
+from lan import lan
 
 RED = "\033[31m"
 RESET = "\033[0m"
@@ -14,34 +12,35 @@ BANNER = f"""
 ========================{RESET}
 """
 
-
 def cmd_host():
-    print("[*] Host mode selected")
-    state.mode = "host"
+    oracle.create_session()
+    network.connect()
+    lan.start_sniff()
 
 def cmd_join(args):
     if len(args) != 1:
         print("Usage: !join <code>")
         return
-    code = args[0]
-    print(f"[*] Joining session {code}")
-    state.mode = "peer"
-    state.session_code = code
+    oracle.join_session(args[0])
+    network.connect()
 
 def cmd_status():
-    state.print_status()
+    print("====== STATUS ======")
+    print("Mode          :", state.mode)
+    print("Network Mode  :", state.network_mode)
+    print("Peers         :", len(state.peers))
+    print("====================")
 
 def cmd_help():
     print("""
-Available commands:
-  !host               Start host mode
-  !join <code>        Join session
-  !status             Show status
-  !help               Show this help
-  !exit               Exit program
+!host
+!join <code>
+!status
+!help
+!exit
 """)
 
-def handle_command(raw: str):
+def handle_command(raw):
     if not raw:
         return
 
@@ -58,19 +57,18 @@ def handle_command(raw: str):
     elif cmd == "!help":
         cmd_help()
     elif cmd == "!exit":
-        print("Exiting...")
         exit(0)
     else:
-        print("Unknown command. Type !help")
+        print("Unknown command")
 
 def main():
+    network.on_receive = lan.emit
     print(BANNER)
     while True:
         try:
             raw = input("Minelink> ").strip()
             handle_command(raw)
         except KeyboardInterrupt:
-            print("\nInterrupted")
             break
 
 if __name__ == "__main__":
