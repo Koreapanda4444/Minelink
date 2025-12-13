@@ -1,24 +1,36 @@
+import socket
 import threading
-import time
 from network import network
 from state import state
+
+MC_LAN_PORT = 4445
+BUFFER_SIZE = 2048
 
 class LanEmulator:
     def start_sniff(self):
         if not state.is_host():
             return
-        threading.Thread(target=self._sniff_loop, daemon=True).start()
-        print("LAN sniff started")
+        t = threading.Thread(target=self._sniff_loop, daemon=True)
+        t.start()
+        print("LAN sniff started (UDP capture)")
 
     def _sniff_loop(self):
-        while state.is_host():
-            data = {"type": "lan_announce", "name": "Minecraft LAN Server"}
-            network.send(data)
-            time.sleep(2)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("", MC_LAN_PORT))
 
-    def emit(self, data):
-        if not state.is_peer():
-            return
-        print("LAN server discovered:", data)
+        while state.is_host():
+            try:
+                data, addr = sock.recvfrom(BUFFER_SIZE)
+                payload = {
+                    "type": "lan_packet",
+                    "data": data.hex()
+                }
+                network.send(payload)
+            except Exception:
+                continue
+
+    def emit(self, payload):
+        pass
 
 lan = LanEmulator()
