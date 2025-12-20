@@ -23,5 +23,13 @@ def parse_status_response(packet):
     if packet_id != 0x00:
         return None
     json_len = read_varint_buf(buf)
-    data = buf.read(json_len).decode()
-    return data
+    return buf.read(json_len).decode()
+
+
+def parse_disconnect(packet):
+    buf = BytesIO(packet)
+    packet_id = read_varint_buf(buf)
+    if packet_id != 0x00:
+        return None
+    msg_len = read_varint_buf(buf)
+    return buf.read(msg_len).decode()
