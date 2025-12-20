@@ -1,1 +1,5 @@
-# Runtime state holder
+HANDSHAKE = 0
+STATUS = 1
+LOGIN = 2
+ENCRYPTION = 3
+PLAY = 4
