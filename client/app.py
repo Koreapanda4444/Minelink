@@ -1,55 +1,42 @@
+from host import start_host
 from peer import start_peer
 
 BANNER = r"""
 ========================================
   Minelink - Minecraft LAN Linker
 ========================================
-!host            : Host mode
+!host <CODE>     : Host mode
 !join <CODE>     : Peer mode
-!status          : Show status
 !exit            : Exit
 ========================================
 """
 
-
-def print_banner():
-    print(BANNER)
-
-
 def repl():
-    print_banner()
+    print(BANNER)
 
     while True:
         try:
             cmd = input("minelink> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
+        except:
             break
 
         if not cmd:
             continue
 
-        if cmd == "!host":
+        parts = cmd.split()
+
+        if parts[0] == "!host" and len(parts) == 2:
+            print(f"[INFO] Host started (code={parts[1]})")
+            start_host(parts[1])
             continue
 
-        if cmd.startswith("!join"):
-            parts = cmd.split()
-            if len(parts) != 2:
-                continue
-
+        if parts[0] == "!join" and len(parts) == 2:
             print("[INFO] starting peer mode")
-            start_peer()
+            start_peer(parts[1])
             continue
 
-        if cmd == "!status":
-            print("[STATUS]")
-            print("  Mode        : NONE")
-            print("  Peers       : 0")
-            continue
-
-        if cmd == "!exit":
+        if parts[0] == "!exit":
             break
-
 
 if __name__ == "__main__":
     repl()

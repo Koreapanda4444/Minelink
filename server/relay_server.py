@@ -1,28 +1,60 @@
 import socket
 import threading
 
+hosts = {}
 
-def pipe(src, dst):
+def pipe(a, b):
     try:
         while True:
-            data = src.recv(4096)
+            data = a.recv(4096)
             if not data:
                 break
-            dst.sendall(data)
+            b.sendall(data)
+    except:
+        pass
     finally:
-        src.close()
-        dst.close()
+        try:
+            a.close()
+        except:
+            pass
+        try:
+            b.close()
+        except:
+            pass
 
+def handle(sock, addr):
+    line = b""
+    while not line.endswith(b"\n"):
+        chunk = sock.recv(1)
+        if not chunk:
+            return
+        line += chunk
 
-server = socket.socket()
-server.bind(("0.0.0.0", 9000))
-server.listen()
+    role, code = line.decode().strip().split()
 
-print("[relay] listening on :9000")
+    if role == "HOST":
+        hosts[code] = sock
+        return
 
-while True:
-    a, _ = server.accept()
-    b, _ = server.accept()
+    if role == "JOIN":
+        if code not in hosts:
+            sock.close()
+            return
 
-    threading.Thread(target=pipe, args=(a, b), daemon=True).start()
-    threading.Thread(target=pipe, args=(b, a), daemon=True).start()
+        host = hosts.pop(code)
+        host.sendall(f"{addr[0]}:{addr[1]}\n".encode())
+
+        threading.Thread(target=pipe, args=(host, sock), daemon=True).start()
+        threading.Thread(target=pipe, args=(sock, host), daemon=True).start()
+
+def main():
+    s = socket.socket()
+    s.bind(("0.0.0.0", 9000))
+    s.listen(10)
+
+    while True:
+        c, a = s.accept()
+        threading.Thread(target=handle, args=(c, a), daemon=True).start()
+
+if __name__ == "__main__":
+    main()
