@@ -1,4 +1,5 @@
 import threading
+import socket
 from mc_codec import read_packet, write_packet
 
 
@@ -8,6 +9,20 @@ class ProxyConnection:
         self.b = b
         self.running = True
 
+        self.a.settimeout(5)
+        self.b.settimeout(5)
+
+    def shutdown(self):
+        self.running = False
+        try:
+            self.a.close()
+        except:
+            pass
+        try:
+            self.b.close()
+        except:
+            pass
+
     def pipe(self, src, dst, hook=None):
         try:
             while self.running:
@@ -16,15 +31,7 @@ class ProxyConnection:
                     hook(packet)
                 write_packet(dst, packet)
         except Exception:
-            self.running = False
-            try:
-                src.close()
-            except:
-                pass
-            try:
-                dst.close()
-            except:
-                pass
+            self.shutdown()
 
     def start(self, hook_a=None, hook_b=None):
         threading.Thread(
