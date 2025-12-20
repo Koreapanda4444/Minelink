@@ -17,15 +17,24 @@ class ProxyConnection:
                 write_packet(dst, packet)
         except Exception:
             self.running = False
+            try:
+                src.close()
+            except:
+                pass
+            try:
+                dst.close()
+            except:
+                pass
 
     def start(self, hook_a=None, hook_b=None):
-        t1 = threading.Thread(
-            target=self.pipe, args=(self.a, self.b, hook_a), daemon=True
-        )
-        t2 = threading.Thread(
-            target=self.pipe, args=(self.b, self.a, hook_b), daemon=True
-        )
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+        threading.Thread(
+            target=self.pipe,
+            args=(self.a, self.b, hook_a),
+            daemon=True
+        ).start()
+
+        threading.Thread(
+            target=self.pipe,
+            args=(self.b, self.a, hook_b),
+            daemon=True
+        ).start()

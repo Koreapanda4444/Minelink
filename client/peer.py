@@ -13,23 +13,30 @@ def start_peer():
     relay = socket.socket()
     relay.connect(("127.0.0.1", 9000))
 
-    state = {"mode": None, "encrypted": False, "play": False}
+    state = {
+        "phase": "HANDSHAKE",
+        "encrypted": False,
+        "play": False
+    }
 
     def on_client(packet):
-        pid = parse_packet_id(packet)
-        if pid == 0x00 and state["mode"] is None:
-            state["mode"] = "STATUS"
-        elif pid == 0x00 and state["mode"] == "STATUS":
-            state["mode"] = "LOGIN"
+        if state["phase"] == "HANDSHAKE":
+            state["phase"] = "AWAIT_SERVER"
 
     def on_server(packet):
         pid = parse_packet_id(packet)
 
-        if state["mode"] == "LOGIN" and pid == 0x01:
+        if state["phase"] == "AWAIT_SERVER":
+            if pid == 0x00:
+                state["phase"] = "STATUS"
+            else:
+                state["phase"] = "LOGIN"
+
+        if state["phase"] == "LOGIN" and pid == 0x01:
             state["encrypted"] = True
 
-        if state["mode"] == "LOGIN" and is_login_success(packet):
-            state["mode"] = "PLAY"
+        if state["phase"] == "LOGIN" and is_login_success(packet):
+            state["phase"] = "PLAY"
             state["play"] = True
             print("PLAY")
 
