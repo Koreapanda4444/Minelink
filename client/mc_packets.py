@@ -1,5 +1,4 @@
 from io import BytesIO
-from mc_states import STATUS, LOGIN
 
 
 def read_varint_buf(buf):
@@ -13,25 +12,16 @@ def read_varint_buf(buf):
         shift += 7
 
 
-def parse_handshake(packet):
+def parse_packet_id(packet):
     buf = BytesIO(packet)
+    return read_varint_buf(buf)
 
-    packet_id = buf.read(1)[0]
+
+def parse_status_response(packet):
+    buf = BytesIO(packet)
+    packet_id = read_varint_buf(buf)
     if packet_id != 0x00:
         return None
-
-    protocol_version = read_varint_buf(buf)
-
-    addr_len = read_varint_buf(buf)
-    server_addr = buf.read(addr_len).decode()
-
-    server_port = int.from_bytes(buf.read(2), "big")
-
-    next_state = read_varint_buf(buf)
-
-    return {
-        "protocol": protocol_version,
-        "address": server_addr,
-        "port": server_port,
-        "next_state": next_state
-    }
+    json_len = read_varint_buf(buf)
+    data = buf.read(json_len).decode()
+    return data
