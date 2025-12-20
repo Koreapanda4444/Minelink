@@ -17,19 +17,7 @@ def parse_packet_id(packet):
     return read_varint_buf(buf)
 
 
-def parse_status_response(packet):
+def is_login_success(packet):
     buf = BytesIO(packet)
-    packet_id = read_varint_buf(buf)
-    if packet_id != 0x00:
-        return None
-    json_len = read_varint_buf(buf)
-    return buf.read(json_len).decode()
-
-
-def parse_disconnect(packet):
-    buf = BytesIO(packet)
-    packet_id = read_varint_buf(buf)
-    if packet_id != 0x00:
-        return None
-    msg_len = read_varint_buf(buf)
-    return buf.read(msg_len).decode()
+    pid = read_varint_buf(buf)
+    return pid == 0x02

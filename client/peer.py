@@ -1,6 +1,6 @@
 import socket
 from proxy_common import ProxyConnection
-from mc_packets import parse_packet_id
+from mc_packets import parse_packet_id, is_login_success
 
 
 def start_peer():
@@ -13,7 +13,7 @@ def start_peer():
     relay = socket.socket()
     relay.connect(("127.0.0.1", 9000))
 
-    state = {"mode": None, "encrypted": False}
+    state = {"mode": None, "encrypted": False, "play": False}
 
     def on_client(packet):
         pid = parse_packet_id(packet)
@@ -27,6 +27,11 @@ def start_peer():
 
         if state["mode"] == "LOGIN" and pid == 0x01:
             state["encrypted"] = True
+
+        if state["mode"] == "LOGIN" and is_login_success(packet):
+            state["mode"] = "PLAY"
+            state["play"] = True
+            print("PLAY")
 
     ProxyConnection(
         client,
