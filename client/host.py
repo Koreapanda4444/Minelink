@@ -1,16 +1,50 @@
 import socket
-from config import ORACLE_HOST, ORACLE_PORT, MC_SERVER_HOST, MC_SERVER_PORT
-from proxy_common import ProxyConnection
+import threading
+from proxy_common import pipe
+from config import *
+
+def recv_line(sock):
+    buf = b""
+    while not buf.endswith(b"\n"):
+        chunk = sock.recv(1)
+        if not chunk:
+            raise ConnectionError
+        buf += chunk
+    return buf.decode().strip()
 
 def start_host(code):
+    print("[HOST] connecting to relay...")
     relay = socket.socket()
     relay.connect((ORACLE_HOST, ORACLE_PORT))
     relay.sendall(f"HOST {code}\n".encode())
+    print(f"[HOST] registered as HOST (code={code})")
 
-    peer_info = relay.recv(128).decode().strip()
-    print(f"[INFO] Peer connected: {peer_info}")
+    print("[HOST] waiting for peer join...")
 
-    server = socket.socket()
-    server.connect((MC_SERVER_HOST, MC_SERVER_PORT))
+    line = recv_line(relay)
+    print(f"[HOST] relay control message: {line}")
 
-    ProxyConnection(relay, server).start()
+    if line != "PEER_JOINED":
+        print("[HOST] unexpected control message, abort")
+        return
+
+    peer_addr = recv_line(relay)
+    print(f"[HOST] peer connected from {peer_addr}")
+
+    print("[HOST] connecting to local minecraft server...")
+    mc = socket.socket()
+    mc.connect((MC_SERVER_HOST, MC_SERVER_PORT))
+    print("[HOST] connected to minecraft server (25565)")
+
+    print("[HOST] starting packet proxy")
+
+    threading.Thread(target=pipe, args=(relay, mc, "relay->mc"), daemon=True).start()
+    threading.Thread(target=pipe, args=(mc, relay, "mc->relay"), daemon=True).start()
+
+    while True:
+        try:
+            cmd = recv_line(relay)
+            print(f"[HOST][CTRL] {cmd}")
+        except:
+            print("[HOST] control channel closed")
+            break

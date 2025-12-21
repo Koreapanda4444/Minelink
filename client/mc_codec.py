@@ -1,3 +1,5 @@
+import struct
+
 def read_varint(sock):
     num = 0
     shift = 0
@@ -8,29 +10,28 @@ def read_varint(sock):
         val = b[0]
         num |= (val & 0x7F) << shift
         if not (val & 0x80):
-            return num
+            break
         shift += 7
+    return num
+
+def write_varint(n):
+    out = b""
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out += bytes([b | 0x80])
+        else:
+            out += bytes([b])
+            break
+    return out
 
 def read_packet(sock):
     length = read_varint(sock)
     data = b""
     while len(data) < length:
-        chunk = sock.recv(length - len(data))
-        if not chunk:
-            raise ConnectionError
-        data += chunk
+        data += sock.recv(length - len(data))
     return data
 
-def write_varint(sock, value):
-    while True:
-        b = value & 0x7F
-        value >>= 7
-        if value:
-            sock.send(bytes([b | 0x80]))
-        else:
-            sock.send(bytes([b]))
-            break
-
 def write_packet(sock, data):
-    write_varint(sock, len(data))
-    sock.sendall(data)
+    sock.sendall(write_varint(len(data)) + data)
