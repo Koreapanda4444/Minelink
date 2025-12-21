@@ -1,63 +1,102 @@
 import socket
 import threading
+from sessions import Session
 
-hosts = {}
+HOST = "0.0.0.0"
+PORT = 9000
 
-def pipe(a, b):
+sessions = {}
+lock = threading.Lock()
+
+def recv_line(sock):
+    buf = b""
+    while not buf.endswith(b"\n"):
+        d = sock.recv(1)
+        if not d:
+            raise ConnectionError
+        buf += d
+    return buf.decode().strip()
+
+def pipe(a, b, label):
     try:
         while True:
             d = a.recv(4096)
             if not d:
                 break
             b.sendall(d)
-    except:
-        pass
+    except Exception as e:
+        print(f"[PIPE] {label} 종료: {e}")
     finally:
         try: a.close()
         except: pass
         try: b.close()
         except: pass
 
-def handle(c, addr):
+def handle_client(sock, addr):
     try:
-        line = b""
-        while not line.endswith(b"\n"):
-            line += c.recv(1)
+        line = recv_line(sock)
+        parts = line.split()
 
-        cmd = line.decode().strip().split()
-        if cmd[0] == "HOST":
-            code = cmd[1]
-            hosts[code] = c
-            print("[RELAY] HOST", code)
+        if len(parts) != 2:
+            sock.close()
+            return
 
-        elif cmd[0] == "JOIN":
-            code = cmd[1]
-            if code not in hosts:
-                c.sendall(b"NO_HOST\n")
-                c.close()
-                return
+        cmd, code = parts
+        print(f"[RELAY] {addr} -> {cmd} {code}")
 
-            host = hosts[code]
-            c.sendall(b"JOIN_OK\n")
+        if cmd == "HOST":
+            with lock:
+                sessions[code] = Session(code, sock)
+            sock.sendall(b"HOST_OK\n")
+            print(f"[RELAY] HOST 등록: {code}")
 
-            host.sendall(b"PEER_JOINED\n")
-            host.sendall(f"{addr[0]}:{addr[1]}\n".encode())
+        elif cmd == "JOIN":
+            with lock:
+                if code not in sessions:
+                    sock.sendall(b"NO_SESSION\n")
+                    sock.close()
+                    return
+                session = sessions[code]
 
-            threading.Thread(target=pipe, args=(host, c), daemon=True).start()
-            threading.Thread(target=pipe, args=(c, host), daemon=True).start()
+            pid = session.add_peer(sock)
+            sock.sendall(f"JOIN_OK {pid}\n".encode())
+            print(f"[RELAY] PEER 참가: {addr} -> {code} (peer_id={pid})")
+
+            threading.Thread(
+                target=pipe,
+                args=(sock, session.host_sock, f"peer{pid}->{code}"),
+                daemon=True
+            ).start()
+
+            threading.Thread(
+                target=pipe,
+                args=(session.host_sock, sock, f"{code}->peer{pid}"),
+                daemon=True
+            ).start()
+
+        else:
+            sock.close()
 
     except Exception as e:
-        print("[RELAY] error:", e)
+        print(f"[RELAY] error: {e}")
+        try:
+            sock.close()
+        except:
+            pass
 
 def main():
     s = socket.socket()
-    s.bind(("0.0.0.0", 9000))
-    s.listen(5)
-    print("[RELAY] started")
+    s.bind((HOST, PORT))
+    s.listen()
+    print(f"[RELAY] 멀티피어 릴레이 시작 :{PORT}")
 
     while True:
         c, a = s.accept()
-        threading.Thread(target=handle, args=(c, a), daemon=True).start()
+        threading.Thread(
+            target=handle_client,
+            args=(c, a),
+            daemon=True
+        ).start()
 
 if __name__ == "__main__":
     main()
