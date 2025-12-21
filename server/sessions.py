@@ -25,5 +25,27 @@ class Session:
 
     def remove_peer(self, pid):
         with self.lock:
-            self.peers.pop(pid, None)
-            self.host_peers.pop(pid, None)
+            ps = self.peers.pop(pid, None)
+            hs = self.host_peers.pop(pid, None)
+
+        try:
+            if ps: ps.close()
+        except:
+            pass
+        try:
+            if hs: hs.close()
+        except:
+            pass
+
+    def close_all(self):
+        with self.lock:
+            peers = list(self.peers.keys())
+
+        for pid in peers:
+            self.remove_peer(pid)
+
+        try:
+            if self.host_ctrl:
+                self.host_ctrl.close()
+        except:
+            pass
