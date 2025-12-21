@@ -11,25 +11,17 @@ BANNER = """
 ========================================
 """
 
-def repl():
+def main():
     print(BANNER)
+
     while True:
-        cmd = input("minelink> ").strip()
-        if not cmd:
-            continue
-
-        parts = cmd.split()
-
-        if parts[0] == "!host" and len(parts) == 2:
-            print(f"[INFO] Host started (code={parts[1]})")
-            start_host(parts[1])
-
-        elif parts[0] == "!join" and len(parts) == 2:
-            print("[INFO] starting peer mode")
-            start_peer(parts[1])
-
-        elif parts[0] == "!exit":
+        cmd = input("> ").strip()
+        if cmd.startswith("!host "):
+            start_host(cmd.split()[1])
+        elif cmd.startswith("!join "):
+            start_peer(cmd.split()[1])
+        elif cmd == "!exit":
             break
 
 if __name__ == "__main__":
-    repl()
+    main()

@@ -1,17 +1,23 @@
-import socket
 import threading
 
-def pipe(a, b, tag=""):
+def pipe(a, b, name="PIPE"):
     try:
         while True:
-            data = a.recv(4096)
-            if not data:
+            d = a.recv(4096)
+            if not d:
                 break
-            b.sendall(data)
-    except:
-        pass
+            b.sendall(d)
+    except Exception as e:
+        print(f"[{name}] 종료:", e)
     finally:
         try: a.close()
         except: pass
         try: b.close()
         except: pass
+
+def start_pipe(a, b, label):
+    threading.Thread(
+        target=pipe,
+        args=(a, b, label),
+        daemon=True
+    ).start()

@@ -1,15 +1,15 @@
 import socket
 import threading
-from proxy_common import pipe
 from config import *
+from proxy_common import start_pipe
 
 def recv_line(sock):
     buf = b""
     while not buf.endswith(b"\n"):
-        chunk = sock.recv(1)
-        if not chunk:
+        c = sock.recv(1)
+        if not c:
             raise ConnectionError
-        buf += chunk
+        buf += c
     return buf.decode().strip()
 
 def start_host(code):
@@ -17,43 +17,27 @@ def start_host(code):
     relay = socket.socket()
     relay.connect((ORACLE_HOST, ORACLE_PORT))
     relay.sendall(f"HOST {code}\n".encode())
-    print(f"[HOST] registered as HOST (code={code})")
 
-    print("[HOST] waiting for peer join...")
-
-    line = recv_line(relay)
-    print(f"[HOST] relay control message: {line}")
-
-    if line != "PEER_JOINED":
-        print("[HOST] unexpected control message, abort")
+    print("[HOST] waiting for peer...")
+    msg = recv_line(relay)
+    if msg != "PEER_JOINED":
+        print("[HOST] unexpected:", msg)
         return
 
     peer_addr = recv_line(relay)
-    print(f"[HOST] peer connected from {peer_addr}")
+    print("[HOST] peer connected:", peer_addr)
 
-    print("[HOST] connecting to local minecraft server...")
+    print("[HOST] connecting to minecraft server...")
     mc = socket.socket()
     mc.connect((MC_SERVER_HOST, MC_SERVER_PORT))
-    print(f"[HOST] connected to minecraft server ({MC_SERVER_HOST}:{MC_SERVER_PORT})")
+    print("[HOST] minecraft connected")
 
-    print("[HOST] starting packet proxy")
+    print("[HOST] starting RAW tunnel")
+    start_pipe(relay, mc, "relay->mc")
+    start_pipe(mc, relay, "mc->relay")
 
-    threading.Thread(
-        target=pipe,
-        args=(relay, mc, "relay->mc"),
-        daemon=True
-    ).start()
-
-    threading.Thread(
-        target=pipe,
-        args=(mc, relay, "mc->relay"),
-        daemon=True
-    ).start()
-
-    while True:
-        try:
-            cmd = recv_line(relay)
-            print(f"[HOST][CTRL] {cmd}")
-        except:
-            print("[HOST] control channel closed")
-            break
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        print("[HOST] exit")
