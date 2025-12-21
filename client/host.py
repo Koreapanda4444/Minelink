@@ -34,12 +34,21 @@ def start_host(code):
     print("[HOST] connecting to local minecraft server...")
     mc = socket.socket()
     mc.connect((MC_SERVER_HOST, MC_SERVER_PORT))
-    print("[HOST] connected to minecraft server (25565)")
+    print(f"[HOST] connected to minecraft server ({MC_SERVER_HOST}:{MC_SERVER_PORT})")
 
     print("[HOST] starting packet proxy")
 
-    threading.Thread(target=pipe, args=(relay, mc, "relay->mc"), daemon=True).start()
-    threading.Thread(target=pipe, args=(mc, relay, "mc->relay"), daemon=True).start()
+    threading.Thread(
+        target=pipe,
+        args=(relay, mc, "relay->mc"),
+        daemon=True
+    ).start()
+
+    threading.Thread(
+        target=pipe,
+        args=(mc, relay, "mc->relay"),
+        daemon=True
+    ).start()
 
     while True:
         try:
