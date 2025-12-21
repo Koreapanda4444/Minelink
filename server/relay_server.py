@@ -37,52 +37,47 @@ def handle_client(sock, addr):
         line = recv_line(sock)
         parts = line.split()
 
-        if len(parts) != 2:
-            sock.close()
-            return
-
-        cmd, code = parts
-        print(f"[RELAY] {addr} -> {cmd} {code}")
-
-        if cmd == "HOST":
+        if parts[0] == "HOST":
+            code = parts[1]
             with lock:
-                sessions[code] = Session(code, sock)
+                sess = Session(code)
+                sess.register_host(sock)
+                sessions[code] = sess
             sock.sendall(b"HOST_OK\n")
             print(f"[RELAY] HOST 등록: {code}")
 
-        elif cmd == "JOIN":
+        elif parts[0] == "JOIN":
+            code = parts[1]
             with lock:
-                if code not in sessions:
-                    sock.sendall(b"NO_SESSION\n")
-                    sock.close()
-                    return
-                session = sessions[code]
+                sess = sessions.get(code)
+            if not sess:
+                sock.sendall(b"NO_SESSION\n")
+                sock.close()
+                return
 
-            pid = session.add_peer(sock)
+            pid = sess.add_peer(sock)
             sock.sendall(f"JOIN_OK {pid}\n".encode())
-            print(f"[RELAY] PEER 참가: {addr} -> {code} (peer_id={pid})")
+            print(f"[RELAY] PEER 참가: {addr} -> {code} (pid={pid})")
+
+            sess.host_ctrl.sendall(f"NEW_PEER {pid}\n".encode())
+
+            host_data, _ = sess.host_ctrl.accept()
+            sess.bind_host_peer(pid, host_data)
 
             threading.Thread(
                 target=pipe,
-                args=(sock, session.host_sock, f"peer{pid}->{code}"),
+                args=(sock, host_data, f"peer{pid}->{code}"),
                 daemon=True
             ).start()
 
             threading.Thread(
                 target=pipe,
-                args=(session.host_sock, sock, f"{code}->peer{pid}"),
+                args=(host_data, sock, f"{code}->peer{pid}"),
                 daemon=True
             ).start()
-
-        else:
-            sock.close()
 
     except Exception as e:
         print(f"[RELAY] error: {e}")
-        try:
-            sock.close()
-        except:
-            pass
 
 def main():
     s = socket.socket()

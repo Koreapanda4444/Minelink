@@ -1,43 +1,46 @@
 import socket
 import threading
+from proxy_common import pipe
 from config import *
-from proxy_common import start_pipe
 
 def recv_line(sock):
     buf = b""
     while not buf.endswith(b"\n"):
-        c = sock.recv(1)
-        if not c:
+        d = sock.recv(1)
+        if not d:
             raise ConnectionError
-        buf += c
+        buf += d
     return buf.decode().strip()
 
-def start_host(code):
-    print("[HOST] connecting to relay...")
-    relay = socket.socket()
-    relay.connect((ORACLE_HOST, ORACLE_PORT))
-    relay.sendall(f"HOST {code}\n".encode())
+def handle_peer(pid, relay_addr):
+    print(f"[HOST] peer {pid} data 채널 생성")
+    data = socket.socket()
+    data.connect(relay_addr)
 
-    print("[HOST] waiting for peer...")
-    msg = recv_line(relay)
-    if msg != "PEER_JOINED":
-        print("[HOST] unexpected:", msg)
-        return
-
-    peer_addr = recv_line(relay)
-    print("[HOST] peer connected:", peer_addr)
-
-    print("[HOST] connecting to minecraft server...")
     mc = socket.socket()
     mc.connect((MC_SERVER_HOST, MC_SERVER_PORT))
-    print("[HOST] minecraft connected")
 
-    print("[HOST] starting RAW tunnel")
-    start_pipe(relay, mc, "relay->mc")
-    start_pipe(mc, relay, "mc->relay")
+    threading.Thread(
+        target=pipe,
+        args=(data, mc, f"relay{pid}->mc"),
+        daemon=True
+    ).start()
 
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        print("[HOST] exit")
+    threading.Thread(
+        target=pipe,
+        args=(mc, data, f"mc->relay{pid}"),
+        daemon=True
+    ).start()
+
+def start_host(code):
+    ctrl = socket.socket()
+    ctrl.connect((ORACLE_HOST, ORACLE_PORT))
+    ctrl.sendall(f"HOST {code}\n".encode())
+    print(f"[HOST] HOST 등록 완료: {code}")
+
+    while True:
+        line = recv_line(ctrl)
+        cmd, pid = line.split()
+        if cmd == "NEW_PEER":
+            print(f"[HOST] 신규 PEER 요청: {pid}")
+            handle_peer(pid, ctrl.getsockname())

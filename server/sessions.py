@@ -3,9 +3,9 @@ import threading
 class Session:
     def __init__(self, code):
         self.code = code
-        self.host_ctrl = None          # 제어 채널
-        self.host_peers = {}           # peer_id -> host_data_socket
-        self.peers = {}                # peer_id -> peer_socket
+        self.host_ctrl = None
+        self.host_peers = {}
+        self.peers = {}
         self.next_peer_id = 1
         self.lock = threading.Lock()
 
