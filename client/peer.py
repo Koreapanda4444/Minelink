@@ -2,25 +2,36 @@ import socket
 from proxy_common import start_pipe
 from config import *
 
-def start_peer(code):
-    relay = socket.socket()
-    relay.connect((ORACLE_HOST, ORACLE_PORT))
-    relay.sendall(f"JOIN {code}\n".encode())
+def recv_line(sock):
+    buf = b""
+    while not buf.endswith(b"\n"):
+        d = sock.recv(1)
+        if not d:
+            raise ConnectionError
+        buf += d
+    return buf.decode().strip()
 
-    resp = relay.recv(1024).decode().strip()
-    _, pid, host_ip, host_port = resp.split()
+def start_peer(code):
+    ctrl = socket.socket()
+    ctrl.connect((ORACLE_HOST, ORACLE_PORT))
+    ctrl.sendall(f"JOIN {code}\n".encode())
+
+    line = recv_line(ctrl)
+    _, pid = line.split()
+    pid = int(pid)
     print(f"[PEER] JOIN 완료 (pid={pid})")
 
     data = socket.socket()
-    data.connect((host_ip, int(host_port)))
+    data.connect((ORACLE_HOST, ORACLE_PORT))
+    data.sendall(f"DATA {pid}\n".encode())
 
     listen = socket.socket()
     listen.bind((PEER_BIND_HOST, PEER_BIND_PORT))
     listen.listen(1)
-    print("[PEER] minecraft 대기 중")
+    print("[PEER] 마크 대기 중")
 
     mc, _ = listen.accept()
-    print("[PEER] minecraft 연결됨")
+    print("[PEER] 마크 연결됨")
 
     start_pipe(data, mc, "relay->mc")
     start_pipe(mc, data, "mc->relay")
